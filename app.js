@@ -6,6 +6,13 @@ const app = express();
 const port = 3000;
 
 
+// from part 3
+const jwt = require('jsonwebtoken');
+const bcrypt = require('bcrypt');
+const SECRET = 'supersecretkey'; // Use env var in prod
+
+
+
 const cors = require('cors');
 require('dotenv').config();
 
@@ -151,6 +158,33 @@ app.post('/payments', (req, res) => {
   db.query(sql, [member_id, amount, payment_date], (err, result) => {
     if (err) return res.status(500).send(err);
     res.status(201).json({ message: 'Payment recorded', id: result.insertId });
+  });
+});
+
+
+// part 3 inserted
+
+// Register
+app.post('/register', async (req, res) => {
+  const { email, password } = req.body;
+  const hashed = await bcrypt.hash(password, 10);
+  db.query('INSERT INTO users (email, password) VALUES (?, ?)', [email, hashed], (err) => {
+    if (err) return res.status(500).send(err);
+    res.send({ message: 'Registered' });
+  });
+});
+
+// Login
+app.post('/login', (req, res) => {
+  const { email, password } = req.body;
+  db.query('SELECT * FROM users WHERE email = ?', [email], async (err, results) => {
+    if (err || results.length === 0) return res.status(401).send({ error: 'Invalid credentials' });
+
+    const match = await bcrypt.compare(password, results[0].password);
+    if (!match) return res.status(401).send({ error: 'Invalid credentials' });
+
+    const token = jwt.sign({ id: results[0].id, email }, SECRET, { expiresIn: '1h' });
+    res.send({ token });
   });
 });
 
